@@ -42,7 +42,7 @@ int main(int argc, const char ** argv){
     
     for (int i = 0; i < 1; i++) {
         auto board = Board(grid, current, held, next);
-        auto move = Score::find_best_move(board, 4);
-        std::cout << move.transform.dx << ':' << move.transform.dtheta << ':' << move.swap << std::endl;
+        auto move = Score::find_best_move(board, 5);
+        std::cout << move.transform.dx << ':' << move.transform.dtheta << ':' << move.swap << ':' << Score::boards_scored << std::endl;
     }
 }

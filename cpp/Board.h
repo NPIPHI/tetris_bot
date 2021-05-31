@@ -9,6 +9,11 @@
 #include "Grid.h"
 #include<array>
 
+struct Constraint {
+    int max_height;
+    int max_holes;
+};
+
 struct Board {
     Piece current, held;
     std::array<Piece, 5> next_pieces;
@@ -19,6 +24,7 @@ struct Board {
     }
 
     Board(): current(), held(), next_pieces(), grid() {}
+
 };
 
 
