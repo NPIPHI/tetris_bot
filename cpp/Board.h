@@ -18,19 +18,7 @@ struct Board {
                                                                                   next_pieces(next_pieces){
     }
 
-    Board(){
-
-    }
-
-    void print() const{
-        for(int y = 0; y < grid.height(); y++){
-            for(int x = 0; x < grid.width(); x++){
-                std::cout << (grid.get(x,y) ? 'X' : '.');
-            }
-            std::cout << '\n';
-        }
-        std::cout.flush();
-    }
+    Board(): current(), held(), next_pieces(), grid() {}
 };
 
 

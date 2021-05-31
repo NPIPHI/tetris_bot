@@ -14,58 +14,66 @@
 #include<bit>
 #include<cstring>
 #include<immintrin.h>
+#include<thread>
 #include<cassert>
+#include<execution>
 
 namespace Score {
     constexpr int line_clear_values[] = {
-            0,
-            -5000,
-            0,
-            50000,
-            200000,
+        0,
+        -1000,
+        -1000,
+        -1000,
+        200000,
     };
 
     constexpr int board_height_values[] = {
-    -14000,
-    -13000,
-    -12000,
-    -11000,
-    -10000,
-    -90000,
-    -80000,
-    -60000,
-    -40000,
-    -20000,
-    -10000,
-    -5000,
-    -1000,
-    -500,
-    -300,
-    -200,
-    -100,
-    0,
-    400,
-    500,
-    500,
-    500,
-    400,
-    100,
-    -500,
-    -1000
+        -90000,
+        -80000,
+        -70000,
+        -60000,
+        -50000,
+        -40000,
+        -30000,
+        -20000,
+        -10000,
+        -6000,
+        -5000,
+        -3000,
+        -2000,
+        -1000,
+        -800,
+        -500,
+        -400,
+        -300,
+        -200,
+        -100,
+        0,
+        50,
+        100,
+        100,
+        50,
+        0,
+        0,
+        0,
     };
-    constexpr std::array<uint16_t, 16> scatter(uint16_t b) {
-        std::array<uint16_t, 16> ret{};
-        for (int i = 0; i < 16; i++) {
-            ret[i] = bool((b>>i) & 1);
+
+
+    constexpr std::array<uint8_t, 32> popcount_lookup_table_256(){
+        std::array<uint8_t, 32> ret{};
+        for(uint32_t i = 0; i < 32; i++){
+            ret[i] = std::popcount(i%16);
         }
         return ret;
     }
-    constexpr std::array<std::array<uint16_t, 16>, 1 << 10> make_scatter_lookup() {
-        std::array<std::array<uint16_t, 16>, 1 << 10> ret{};
-        for (int i = 0; i < 1 << 10; i++) {
-            ret[i] = scatter(i);
-        }
-        return ret;
+
+    int popcount_10_6X24(__m256i low16, __m128i high8){
+        return std::popcount((uint64_t)_mm256_extract_epi64(low16, 0))
+        +std::popcount((uint64_t)_mm256_extract_epi64(low16, 1))
+        +std::popcount((uint64_t)_mm256_extract_epi64(low16, 2))
+        +std::popcount((uint64_t)_mm256_extract_epi64(low16, 3))
+        +std::popcount((uint64_t)_mm_extract_epi64(high8, 0))
+        +std::popcount((uint64_t)_mm_extract_epi64(high8, 1));
     }
 
     int count_holes_ref(const BoardGrid & grid){
@@ -84,14 +92,16 @@ namespace Score {
         return total_holes;
     }
     int count_holes(const BoardGrid & grid){
-        int holes = std::popcount(grid._mem[0]);
-        for(int y = 0; y < grid.height() - 1; y++){
-            uint16_t row = grid._mem[y] ^ grid._mem[y+1];
-            holes += std::popcount(row);
-        }
-        holes += std::popcount(uint16_t(grid._mem[grid.height() - 1] ^ uint16_t(-1)));
-        holes -= 16;
-        holes /= 2;
+        __m256i high_chunck_xor1 = _mm256_loadu_si256((const __m256i *)&grid._mem);
+        __m256i high_chunck_xor2 = _mm256_loadu_si256((const __m256i *)&grid._mem[1]);
+        __m128i low_chunck_xor1 = _mm_loadu_si128((const __m128i *)&grid._mem[16]);
+        __m128i low_shifted = _mm_srli_si128(low_chunck_xor1, 2);
+        __m128i floor_mask = _mm_set_epi16(0x3ff, 0, 0, 0, 0, 0, 0, 0);
+        __m128i low_chunck_xor2 = _mm_or_si128(low_shifted, floor_mask);
+        __m256i high = _mm256_xor_si256(high_chunck_xor1, high_chunck_xor2);
+        __m128i low = _mm_xor_si128(low_chunck_xor1, low_chunck_xor2);
+        int all_popcount = popcount_10_6X24(high, low) + std::popcount(grid._mem[0]);
+        int holes = (all_popcount - 10)/2;
         assert(holes == count_holes_ref(grid));
         return holes;
     }
@@ -121,26 +131,23 @@ namespace Score {
     }
 
     int center_of_mass(const BoardGrid & grid){
-        static constexpr auto scatter_lookup_table = make_scatter_lookup();
+        const uint64_t * chunck_ptr = (const uint64_t *)(&grid._mem);
         int total_blocks = 0;
         int total_polar_mass = 0;
-        for(int y = 0; y < grid.height(); y++){
-            total_blocks += std::popcount(grid._mem[y]);
-            total_polar_mass += y * std::popcount(grid._mem[y]);
+        for(int y = 0; y < 6; y++){
+            auto count = std::popcount(chunck_ptr[y]);
+            total_blocks += count;
+            total_polar_mass += y * 4 * count;
         }
         if(total_blocks == 0) return 24;
-        assert(total_polar_mass / total_blocks == center_of_mass_ref(grid));
         return total_polar_mass / total_blocks;
     }
 
-    size_t total_searched = 0;
-
     int compute_score(const BoardGrid & grid) {
-        total_searched++;
         auto total_holes = count_holes(grid);
         auto top_occupied = get_top_occupied(grid);
         auto total_score = total_holes * -500
-                + board_height_values[top_occupied] * 10
+                + board_height_values[top_occupied]
                 + 100 * center_of_mass(grid);
         return total_score;
     }
@@ -244,6 +251,7 @@ namespace Score {
 
     }
 
+    int score_move(const Board & board, SwapTransform transform, int depth);
     int score_recur(const Board & board, int depth){
         if(depth <= 1){
             return compute_score(board.grid);
@@ -251,51 +259,67 @@ namespace Score {
             const auto & ctransforms = board.current.legal_transforms();
             const auto & stransforms = board.held.legal_transforms();
             int best_score = std::numeric_limits<int>::min();
-            for(auto ctran : ctransforms){
-                auto [new_board, cleared] = apply_transform(board, {ctran, false});
-                assert(cleared >= -1 && cleared <= 4);
-                if(cleared == -1) continue;
-                auto score = score_recur(new_board, depth - 1) + line_clear_values[cleared];
-                best_score = std::max(score, best_score);
-            }
-            for(auto stran : stransforms) {
-                auto[new_board, cleared] = apply_transform(board, {stran, true});
-                assert(cleared >= -1 && cleared <= 4);
-                if(cleared == -1) continue;
-                auto score = score_recur(new_board, depth - 1) + line_clear_values[cleared];
-                best_score = std::max(score, best_score);
-            }
+            best_score = std::transform_reduce(ctransforms.begin(), ctransforms.end(), best_score,
+                                               [](int a, int b){return std::max(a,b);},
+                                               [&](auto ctran) -> int {
+                                                   return score_move(board, {ctran, false}, depth - 1);
+                                               });
+            if(board.current == board.held) return best_score;
+            best_score = std::transform_reduce(stransforms.begin(), stransforms.end(), best_score,
+                                               [](int a, int b){return std::max(a,b);},
+                                               [&](auto ctran) -> int {
+                                                   return score_move(board, {ctran, true}, depth - 1);
+                                               });
             return best_score;
         }
+    }
+
+    int score_move(const Board & board, SwapTransform transform, int depth){
+        auto [new_board, cleared] = apply_transform(board, transform);
+        assert(cleared >= -1 && cleared <= 4);
+        if(cleared == -1
+           || (*(uint64_t*)&new_board.grid._mem) != 0
+           || (*(uint16_t*)&new_board.grid._mem[4]) != 0){
+            return std::numeric_limits<int>::min();
+        }
+        return score_recur(new_board, depth) + line_clear_values[cleared];
     }
 
     SwapTransform find_best_move(const Board &board, int depth) {
         const auto & ctransforms = board.current.legal_transforms();
         const auto & stransforms = board.held.legal_transforms();
-        int best_score = std::numeric_limits<int>::min();
-        SwapTransform best_move{};
-        for(auto ctran : ctransforms){
-            auto [new_board, cleared] = apply_transform(board, {ctran, false});
-            assert(cleared >= -1 && cleared <= 4);
-            if(cleared == -1) continue;
+        std::vector<SwapTransform> all_transforms;
+        std::transform(ctransforms.begin(), ctransforms.end(), std::back_inserter(all_transforms), [](auto a) -> SwapTransform {return {a, false};});
+        if(board.current != board.held)
+            std::transform(stransforms.begin(), stransforms.end(), std::back_inserter(all_transforms), [](auto a) -> SwapTransform {return {a, true};});
 
-            auto score = score_recur(new_board, depth) + line_clear_values[cleared];
-            if(score > best_score){
-                best_score = score;
-                best_move = {ctran, false};
-            }
+        constexpr int thread_pool_size = 16;
+        std::vector<std::thread> threads;
+        std::vector<int> results(all_transforms.size());
+        for(int i = 0; i < thread_pool_size; i++){
+            threads.emplace_back([&, i]{
+                for(int j = i; j < all_transforms.size(); j += thread_pool_size){
+                    results[j] = score_move(board, all_transforms[j], depth);
+                }
+            });
         }
-        for(auto stran : stransforms) {
-            auto[new_board, cleared] = apply_transform(board, {stran, true});
-            assert(cleared >= -1 && cleared <= 4);
-            if(cleared == -1) continue;
-            auto score = score_recur(new_board, depth) + line_clear_values[cleared];
-            if(score > best_score){
-                best_score = score;
-                best_move = {stran, true};
-            }
-        }
-        return best_move;
+        for(auto& t: threads) t.join();
+
+        auto best_index = std::max_element(results.begin(), results.end()) - results.begin();
+        return all_transforms[best_index];
+
+//        auto move = std::transform_reduce(std::execution::seq, all_transforms.begin(), all_transforms.end(),
+//                                          std::pair{std::numeric_limits<int>::min(), SwapTransform{}},
+//        [](std::pair<int, SwapTransform> a, std::pair<int, SwapTransform> b){
+//            return a.first > b.first ? a : b;
+//        },
+//        [&](SwapTransform current_transform) -> std::pair<int, SwapTransform> {
+//            return {score_move(board, current_transform, depth), current_transform};
+//        });
+//        if(move.second != all_transforms[best_index]){
+//            std::cout << "bad" << std::endl;
+//        }
+//        return move.second;
     }
 }
 
