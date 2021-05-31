@@ -8,6 +8,8 @@
 #include<vector>
 #include<bitset>
 #include<array>
+#include<cassert>
+
 struct BoardGrid {
 private:
     static constexpr int _width = 10;
@@ -17,17 +19,11 @@ public:
     void set(int x, int y, bool val){
         uint16_t v = val;
         _mem[y] |= (v << x);
-//        auto mem = (std::bitset<10>*)&_mem;
-//        mem[y][x] = val;
-//        _mem[x + y * width()] = val;
     }
 
     bool get(int x, int y) const{
         uint16_t mask = 1 << x;
         return _mem[y] & mask;
-//        auto mem = (std::bitset<10>*)&_mem;
-//        return mem[y][x];
-//        return _mem[x + y * width()];
     }
     static constexpr int width() {
         return _width;

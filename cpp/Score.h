@@ -131,17 +131,12 @@ namespace Score {
     int center_of_mass(const BoardGrid & grid){
         static constexpr auto scatter_lookup_table = make_scatter_lookup();
         static constexpr auto popcount_table = make_popcount_table();
-        int total_blocks = std::accumulate(grid._mem.begin(), grid._mem.end(), 0, [](int a, auto b){return a + popcount_table[b];});
-        __m256i polar_accum = _mm256_setzero_si256();
-        __m256i polar_running_count = _mm256_setzero_si256();
-        for(int y = grid.height() - 1; y >= 0; y--){
-            auto row = _mm256_loadu_si256((const __m256i *)&scatter_lookup_table[grid._mem[y]]);
-            polar_accum = _mm256_add_epi16(polar_accum, polar_running_count);
-            polar_running_count = _mm256_add_epi16(polar_running_count, row);
+        int total_blocks = 0;
+        int total_polar_mass = 0;
+        for(int y = 0; y < grid.height(); y++){
+            total_blocks += popcount_table[grid._mem[y]];
+            total_polar_mass += y * popcount_table[grid._mem[y]];
         }
-        std::array<uint16_t, 16> arr{};
-        memcpy(arr.data(), &polar_accum, 32);
-        int total_polar_mass = std::accumulate(arr.begin(), arr.end(), 0);
         if(total_blocks == 0) return 24;
         assert(total_polar_mass / total_blocks == center_of_mass_ref(grid));
         return total_polar_mass / total_blocks;

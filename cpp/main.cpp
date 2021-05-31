@@ -86,7 +86,7 @@ int main(int argc, const char ** argv){
         piece = {piecetype_table[*next_strs]};
         next_strs++;
     }
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 1; i++) {
         auto board = Board(grid, current, held, next);
         auto move = Score::find_best_move(board, 4);
         std::cout << move.transform.dx << ':' << move.transform.dtheta << ':' << move.swap << ':' << Score::total_searched << std::endl;
