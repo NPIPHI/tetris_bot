@@ -67,13 +67,6 @@ namespace Score {
         }
         return ret;
     }
-    constexpr std::array<uint8_t, 1<<10> make_popcount_table() {
-        std::array<uint8_t, 1<<10> ret{};
-        for(unsigned i = 0; i < 1 << 10; i++){
-            ret[i] = std::popcount(i);
-        }
-        return ret;
-    }
 
     int count_holes_ref(const BoardGrid & grid){
         int total_holes = 0;
@@ -91,11 +84,10 @@ namespace Score {
         return total_holes;
     }
     int count_holes(const BoardGrid & grid){
-        constexpr static auto popcount_table = make_popcount_table();
-        int holes = popcount_table[grid._mem[0]];
+        int holes = std::popcount(grid._mem[0]);
         for(int y = 0; y < grid.height() - 1; y++){
-            auto row = grid._mem[y] ^ grid._mem[y+1];
-            holes += popcount_table[row];
+            uint16_t row = grid._mem[y] ^ grid._mem[y+1];
+            holes += std::popcount(row);
         }
         holes += std::popcount(uint16_t(grid._mem[grid.height() - 1] ^ uint16_t(-1)));
         holes -= 16;
@@ -130,12 +122,11 @@ namespace Score {
 
     int center_of_mass(const BoardGrid & grid){
         static constexpr auto scatter_lookup_table = make_scatter_lookup();
-        static constexpr auto popcount_table = make_popcount_table();
         int total_blocks = 0;
         int total_polar_mass = 0;
         for(int y = 0; y < grid.height(); y++){
-            total_blocks += popcount_table[grid._mem[y]];
-            total_polar_mass += y * popcount_table[grid._mem[y]];
+            total_blocks += std::popcount(grid._mem[y]);
+            total_polar_mass += y * std::popcount(grid._mem[y]);
         }
         if(total_blocks == 0) return 24;
         assert(total_polar_mass / total_blocks == center_of_mass_ref(grid));
