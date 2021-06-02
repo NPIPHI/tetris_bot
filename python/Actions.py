@@ -33,7 +33,7 @@ def translate_arr(dx: int):
         return [RIGHT] * dx
 
 
-def execute_transform(transform: (int, int, bool), board: Board, delay=0.02):
+def execute_transform(transform: (int, int, bool), board: Board, delay=0.02, drop_delay = 0.5):
     command_buffer = []
     piece = board.hold_piece if transform[2] else board.current_piece
     if transform[2]:
@@ -43,7 +43,7 @@ def execute_transform(transform: (int, int, bool), board: Board, delay=0.02):
     dx = transform[0] - left_pad_table[piece.type][transform[1]]
     typewrite(rotate_arr(transform[1]), interval=delay)
     typewrite(translate_arr(dx), interval=delay)
-    pyautogui.sleep(0.3)
+    pyautogui.sleep(drop_delay)
     typewrite(' ', interval=0)
     # command_buffer += rotate_arr(transform[1])
     # command_buffer += translate_arr(dx)

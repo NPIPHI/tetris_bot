@@ -17,17 +17,25 @@ path = R"C:\Users\16182\PycharmProjects\tetris\cpp\cmake-build-release\findmove.
 
 def make_move(board: Board) -> None:
     board_str = board.encode()
-    start = time.time()
+
     p = Popen(f"{path} {board_str}", stdout=PIPE, stdin=PIPE,
               stderr=PIPE)
     result = b''
     while result == b'':
         result = p.stdout.readline().strip()
-    end = time.time()
     p.kill()
     move = [int(x) for x in result.split(b':')]
     swap = bool(move[2])
-    Actions.execute_transform((move[0], move[1], swap), board, delay=0.01)
+    topped = False
+    for y in range(12):
+        for x in range(10):
+            if board.grid[x, y]:
+                topped = True
+    drop_delay = 0
+    if topped:
+        drop_delay = 0
+
+    Actions.execute_transform((move[0], move[1], swap), board, delay=0.01, drop_delay=drop_delay)
 
 
 def print_grid(grid: np.ndarray):
