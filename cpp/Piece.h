@@ -20,13 +20,11 @@ enum class PieceType {
 
 struct Transfrom {
     int dx, dtheta;
-    bool operator==(const Transfrom &) const = default;
 };
 
 struct SwapTransform {
     Transfrom transform;
     bool swap;
-    bool operator==(const SwapTransform &) const = default;
 };
 
 static std::vector<int> unique_rotation_table[]{
@@ -105,7 +103,12 @@ struct Piece {
             piece_shape_dimensions[(int)type][(dtheta+1)%2],
         };
     }
-    bool operator==(const Piece & p) const = default;
+    bool operator==(const Piece& p) const {
+        return type == p.type;
+    }
+    bool operator!=(const Piece& p) const {
+        return !((*this)==p);
+    }
 };
 
 

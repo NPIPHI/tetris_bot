@@ -11,12 +11,11 @@
 #include<algorithm>
 #include<optional>
 #include<numeric>
-#include<bit>
 #include<cstring>
 #include<immintrin.h>
 #include<thread>
 #include<cassert>
-#include<execution>
+#include<atomic>
 
 namespace Score {
     constexpr std::array<int, 5> line_clear_values{
@@ -55,7 +54,6 @@ namespace Score {
         0,
     };
 
-    std::atomic<size_t> boards_scored{};
     int compute_score(const Board & board) {
         auto total_holes = board.grid.count_holes();
         auto top_occupied = board.grid.top_occupied();
@@ -140,16 +138,16 @@ namespace Score {
             const auto & ctransforms = board.current.legal_transforms();
             const auto & stransforms = board.held.legal_transforms();
             int best_score = std::numeric_limits<int>::min();
-            best_score = std::transform_reduce(ctransforms.begin(), ctransforms.end(), best_score,
-                                               [](int a, int b){return std::max(a,b);},
-                                               [&](auto ctran) -> int {
-                                                   return score_move(board, {ctran, false}, depth - 1, c);
+            best_score = std::accumulate(ctransforms.begin(), ctransforms.end(), best_score,
+                                               [&](int best_score, auto ctran) -> int {
+                                                   auto score = score_move(board, {ctran, false}, depth - 1, c);
+                                                   return std::max(score, best_score);
                                                });
             if(board.current == board.held) return best_score;
-            best_score = std::transform_reduce(stransforms.begin(), stransforms.end(), best_score,
-                                               [](int a, int b){return std::max(a,b);},
-                                               [&](auto ctran) -> int {
-                                                   return score_move(board, {ctran, true}, depth - 1, c);
+            best_score = std::accumulate(stransforms.begin(), stransforms.end(), best_score,
+                                               [&](int best_score, auto ctran) -> int {
+                                                   auto score = score_move(board, {ctran, true}, depth - 1, c);
+                                                   return std::max(score, best_score);
                                                });
             return best_score;
         }
@@ -182,11 +180,12 @@ namespace Score {
         if(board.current != board.held)
             std::transform(stransforms.begin(), stransforms.end(), std::back_inserter(all_transforms), [](auto a) -> SwapTransform {return {a, true};});
 
-        constexpr int thread_pool_size = 16;
+        auto thread_pool_size = std::thread::hardware_concurrency();
         std::vector<std::thread> threads;
+        threads.reserve(thread_pool_size);
         std::vector<int> results(all_transforms.size());
         Constraint c = {board.grid.top_occupied() - 6,board.grid.count_holes() + 1};
-        std::atomic<int> next{0};
+        std::atomic<int> next{};
         for(int i = 0; i < thread_pool_size; i++){
             threads.emplace_back([&]{
                 for(int j = next++; j < all_transforms.size(); j = next++){

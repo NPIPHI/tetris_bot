@@ -6,12 +6,28 @@
 #define TETRIS_GRID_H
 
 #include<vector>
-#include<bitset>
 #include<array>
 #include<iostream>
 #include<cassert>
 #include<immintrin.h>
-#include<bit>
+//#include<bit>
+
+namespace std {
+    uint32_t popcount(uint64_t p){
+        uint32_t count = 0;
+        while(p){
+            p &= p - 1;
+            count++;
+        }
+        return count;
+    }
+    uint32_t countr_zero(uint32_t p){
+        for(int i = 0; i < 32; i++){
+            if(p & (1 << i)) return i;
+        }
+        return 32;
+    }
+}
 
 struct BoardGrid {
 private:
