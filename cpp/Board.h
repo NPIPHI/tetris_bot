@@ -25,6 +25,10 @@ struct Board {
 
     Board(): current(), held(), next_pieces(), grid() {}
 
+    [[nodiscard]] bool within_constraint(Constraint c) const {
+        return grid.top_occupied() >= c.max_height
+            && grid.count_holes() <= c.max_holes;
+    }
 };
 
 

@@ -13,7 +13,6 @@ last_move: (int,int,bool) = None
 from subprocess import *
 
 path = R"C:\Users\16182\PycharmProjects\tetris\cpp\cmake-build-release\findmove.exe"
-verify_path = R"C:\Users\16182\PycharmProjects\tetris\cpp\cmake-build-release-visual-studio\findmove.exe"
 
 
 def make_move(board: Board) -> None:
@@ -28,8 +27,7 @@ def make_move(board: Board) -> None:
     p.kill()
     move = [int(x) for x in result.split(b':')]
     swap = bool(move[2])
-    Actions.execute_transform((move[0], move[1], swap), board)
-    print(move[3], end - start)
+    Actions.execute_transform((move[0], move[1], swap), board, delay=0.01)
 
 
 def print_grid(grid: np.ndarray):
@@ -44,15 +42,18 @@ def print_grid(grid: np.ndarray):
 
 board_image = BoardImage()
 Actions.focus()
-# Actions.swap_hold()
-# Actions.drop()
+Actions.swap_hold()
+Actions.drop()
 pyautogui.sleep(0.1)
 while True:
-    board_image.refresh()
+    try:
+        board_image.refresh()
+        board = Board.from_image(board_image)
 
-    board = Board.from_image(board_image)
-    # board = Board.test_board( )x
+        make_move(board)
+        pyautogui.sleep(0.03)
+    except:
+        print("bad read")
+        break
 
-    make_move(board)
-    pyautogui.sleep(0.03)
 

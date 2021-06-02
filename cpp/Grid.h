@@ -105,6 +105,7 @@ public:
         __m128i low_chunck_xor2 = _mm_or_si128(low_shifted, floor_mask);
         __m256i high = _mm256_xor_si256(high_chunck_xor1, high_chunck_xor2);
         __m128i low = _mm_xor_si128(low_chunck_xor1, low_chunck_xor2);
+
         int all_popcount = popcount_10_6X24(high, low) + std::popcount(_mem[0]);
         int holes = (all_popcount - 10)/2;
         assert(holes == count_holes_ref());

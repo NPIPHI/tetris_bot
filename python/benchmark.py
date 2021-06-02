@@ -12,7 +12,7 @@ for _ in range(10):
     while result == b'':
         result = child.stdout.readline().strip()
     try:
-        (dx,dt,s,count) = [int(x) for x in result.split(b':')]
+        (dx, dt, s, c) = [int(x) for x in result.split(b':')]
     except:
         print("unexpected result")
         print(result)

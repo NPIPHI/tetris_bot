@@ -19,7 +19,7 @@
 #include<execution>
 
 namespace Score {
-    constexpr int line_clear_values[] = {
+    constexpr std::array<int, 5> line_clear_values{
         0,
         -1000,
         -1000,
@@ -27,8 +27,7 @@ namespace Score {
         200000,
     };
 
-    constexpr int board_height_values[] = {
-        -90000,
+    constexpr std::array<int, 25> board_height_values {
         -80000,
         -70000,
         -60000,
@@ -37,16 +36,15 @@ namespace Score {
         -30000,
         -20000,
         -10000,
-        -6000,
         -5000,
-        -3000,
         -2000,
         -1000,
-        -800,
         -500,
         -400,
         -300,
         -200,
+        -100,
+        -100,
         -100,
         0,
         50,
@@ -55,17 +53,15 @@ namespace Score {
         50,
         0,
         0,
-        0,
     };
 
     std::atomic<size_t> boards_scored{};
-    int compute_score(const BoardGrid & grid) {
-        boards_scored++;
-        auto total_holes = grid.count_holes();
-        auto top_occupied = grid.top_occupied();
+    int compute_score(const Board & board) {
+        auto total_holes = board.grid.count_holes();
+        auto top_occupied = board.grid.top_occupied();
         auto total_score = total_holes * -500
                 + board_height_values[top_occupied]
-                + 100 * grid.center_of_mass();
+                + 100 * board.grid.center_of_mass();
         return total_score;
     }
 
@@ -136,10 +132,10 @@ namespace Score {
 
     }
 
-    int score_move(const Board & board, SwapTransform transform, int depth);
-    int score_recur(const Board & board, int depth){
+    int score_move(const Board &board, SwapTransform transform, int depth, Constraint c);
+    int score_recur(const Board &board, int depth, Constraint c) {
         if(depth <= 1){
-            return compute_score(board.grid);
+            return compute_score(board);
         } else {
             const auto & ctransforms = board.current.legal_transforms();
             const auto & stransforms = board.held.legal_transforms();
@@ -147,29 +143,35 @@ namespace Score {
             best_score = std::transform_reduce(ctransforms.begin(), ctransforms.end(), best_score,
                                                [](int a, int b){return std::max(a,b);},
                                                [&](auto ctran) -> int {
-                                                   return score_move(board, {ctran, false}, depth - 1);
+                                                   return score_move(board, {ctran, false}, depth - 1, c);
                                                });
             if(board.current == board.held) return best_score;
             best_score = std::transform_reduce(stransforms.begin(), stransforms.end(), best_score,
                                                [](int a, int b){return std::max(a,b);},
                                                [&](auto ctran) -> int {
-                                                   return score_move(board, {ctran, true}, depth - 1);
+                                                   return score_move(board, {ctran, true}, depth - 1, c);
                                                });
             return best_score;
         }
     }
 
-    int score_move(const Board & board, SwapTransform transform, int depth){
+    int score_move(const Board &board, SwapTransform transform, int depth, Constraint c) {
         auto [new_board, cleared] = apply_transform(board, transform);
         assert(cleared >= -1 && cleared <= 4);
-        if(cleared == -1
-           || (*(uint64_t*)&new_board.grid._mem) != 0
-           || (*(uint16_t*)&new_board.grid._mem[4]) != 0){
+        if((cleared == -1)
+           || ((*(uint64_t*)&new_board.grid._mem) != 0)
+           || ((*(uint16_t*)&new_board.grid._mem[4]) != 0)
+           || (!new_board.within_constraint(c))){
             return std::numeric_limits<int>::min();
         }
-        return score_recur(new_board, depth)
-        + line_clear_values[cleared]
-        + board_height_values[new_board.grid.top_occupied()];
+        int score = score_recur(new_board, depth, c);
+        if(score == std::numeric_limits<int>::min()) {
+            return std::numeric_limits<int>::min();
+        } else {
+            return score
+                   + line_clear_values[cleared]
+                   + board_height_values[new_board.grid.top_occupied()];
+        }
     }
 
     SwapTransform find_best_move(const Board &board, int depth) {
@@ -183,10 +185,12 @@ namespace Score {
         constexpr int thread_pool_size = 16;
         std::vector<std::thread> threads;
         std::vector<int> results(all_transforms.size());
+        Constraint c = {board.grid.top_occupied() - 6,board.grid.count_holes() + 1};
+        std::atomic<int> next{0};
         for(int i = 0; i < thread_pool_size; i++){
-            threads.emplace_back([&, i]{
-                for(int j = i; j < all_transforms.size(); j += thread_pool_size){
-                    results[j] = score_move(board, all_transforms[j], depth);
+            threads.emplace_back([&]{
+                for(int j = next++; j < all_transforms.size(); j = next++){
+                    results[j] = score_move(board, all_transforms[j], depth, c);
                 }
             });
         }
